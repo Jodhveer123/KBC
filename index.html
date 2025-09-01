@@ -1,0 +1,172 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KBC Quiz Game</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0a0a2a; color: white; margin: 0; }
+    h1 { color: gold; text-align: center; font-size: 22px; margin-top: 70px; }
+    .game-area { width: 100%; max-width: 500px; margin: auto; text-align: center; padding: 10px; }
+    .question-box { background: #111155; padding: 15px; border-radius: 10px; margin: 15px auto; }
+    .options button { display: block; margin: 8px auto; padding: 10px; width: 90%; background: #2222aa; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .options button:hover { background: #4444ff; }
+    .lifelines { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 10px 0; }
+    .lifelines button { flex: 1 1 45%; padding: 8px; border-radius: 8px; border: none; cursor: pointer; background: orange; font-size: 14px; }
+    #wallet { font-size: 18px; margin-top: 10px; color: lightgreen; }/* Sidebar Money Tree */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -220px;
+  width: 200px;
+  height: 100%;
+  background: #111155;
+  padding: 15px;
+  overflow-y: auto;
+  transition: left 0.3s ease;
+  z-index: 1000;
+}
+.sidebar.open { left: 0; }
+.money-step { padding: 5px; margin: 3px 0; border-radius: 6px; font-size: 14px; text-align: center; }
+.active-step { background: gold; color: black; font-weight: bold; }
+
+/* Menu button */
+.menu-btn {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  background: gold;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 1100;
+}
+
+@media (min-width: 700px) {
+  .sidebar { position: relative; left: 0; height: auto; width: 200px; transition: none; }
+  .menu-btn { display: none; }
+  body { display: flex; justify-content: center; gap: 20px; align-items: flex-start; }
+  .game-area { flex: 2; }
+}
+
+  </style>
+</head>
+<body>
+  <button class="menu-btn" onclick="toggleSidebar()">☰ Menu</button>
+  <div class="sidebar" id="moneyTree"></div>  <div class="game-area">
+    <h1>Kaun Banega Crorepati - Web Edition</h1>
+    <div id="wallet">Wallet: ₹0</div><div class="lifelines">
+  <button onclick="lifeline5050()">50-50</button>
+  <button onclick="lifelineAudience()">Audience</button>
+  <button onclick="lifelineExpert()">Expert</button>
+  <button onclick="lifelineFlip()">Flip</button>
+</div>
+
+<div class="question-box">
+  <h2 id="question">Loading question...</h2>
+  <div class="options" id="options"></div>
+</div>
+
+  </div>  <script>
+    let wallet = 0;
+    let currentQ = 0;
+    let lifelines = { fifty: true, audience: true, expert: true, flip: true };
+    let questions = [];
+    let prizeSteps = [1000, 2000, 5000, 10000, 20000, 40000, 80000, 160000, 320000, 640000];
+
+    function renderMoneyTree() {
+      let tree = "";
+      for (let i = prizeSteps.length - 1; i >= 0; i--) {
+        tree += `<div class="money-step ${i === currentQ ? 'active-step' : ''}">₹${prizeSteps[i]}</div>`;
+      }
+      document.getElementById("moneyTree").innerHTML = tree;
+    }
+
+    async function loadQuestions() {
+      let res = await fetch("https://opentdb.com/api.php?amount=10&type=multiple");
+      let data = await res.json();
+      questions = data.results.map((q, index) => {
+        let options = [...q.incorrect_answers];
+        let answerIndex = Math.floor(Math.random() * (options.length + 1));
+        options.splice(answerIndex, 0, q.correct_answer);
+        return {
+          q: q.question,
+          options: options,
+          answer: answerIndex,
+          prize: prizeSteps[index]
+        };
+      });
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      if (currentQ >= questions.length) {
+        document.getElementById("question").innerText = "🎉 Congratulations! You finished the game.";
+        document.getElementById("options").innerHTML = "";
+        return;
+      }
+      let q = questions[currentQ];
+      document.getElementById("question").innerHTML = q.q;
+      let optionsHTML = "";
+      q.options.forEach((opt, i) => {
+        optionsHTML += `<button onclick="checkAnswer(${i})">${opt}</button>`;
+      });
+      document.getElementById("options").innerHTML = optionsHTML;
+      renderMoneyTree();
+    }
+
+    function checkAnswer(selected) {
+      let q = questions[currentQ];
+      if (selected === q.answer) {
+        wallet += q.prize;
+        document.getElementById("wallet").innerText = "Wallet: ₹" + wallet;
+        alert("Correct Answer! You won ₹" + q.prize);
+        currentQ++;
+        loadQuestion();
+      } else {
+        alert("❌ Wrong Answer! Game Over. Final Wallet: ₹" + wallet);
+        currentQ = questions.length;
+        loadQuestion();
+      }
+    }
+
+    // Lifelines
+    function lifeline5050() {
+      if (!lifelines.fifty) return alert("Already used!");
+      lifelines.fifty = false;
+      let q = questions[currentQ];
+      let wrongOptions = [0,1,2,3].filter(i => i !== q.answer);
+      wrongOptions = wrongOptions.sort(() => 0.5 - Math.random()).slice(0,2);
+      wrongOptions.forEach(i => {
+        document.querySelectorAll(".options button")[i].style.display = "none";
+      });
+    }
+
+    function lifelineAudience() {
+      if (!lifelines.audience) return alert("Already used!");
+      lifelines.audience = false;
+      alert("Audience thinks the correct answer is: " + questions[currentQ].options[questions[currentQ].answer]);
+    }
+
+    function lifelineExpert() {
+      if (!lifelines.expert) return alert("Already used!");
+      lifelines.expert = false;
+      alert("Expert suggests the correct answer is: " + questions[currentQ].options[questions[currentQ].answer]);
+    }
+
+    function lifelineFlip() {
+      if (!lifelines.flip) return alert("Already used!");
+      lifelines.flip = false;
+      alert("Flipping the question...");
+      currentQ++;
+      loadQuestion();
+    }
+
+    function toggleSidebar() {
+      document.querySelector(".sidebar").classList.toggle("open");
+    }
+
+    loadQuestions();
+  </script></body>
+</html>
